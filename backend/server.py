@@ -1849,6 +1849,33 @@ async def list_orders(status_filter: Optional[str] = None, user=Depends(get_curr
                     })
                     drow["quantity"] += qty
 
+    # ── Discrepancy detection ────────────────────────────────────────────
+    # Catch the case where goods were DISPATCHED before the matching order
+    # was actually punched in (a back-dated order entered after the slip).
+    # For each still-Pending order we look for a dispatch to the SAME party,
+    # sharing at least one SKU, that is NOT linked to this order and whose
+    # dispatch date PRE-DATES the order's entry (created_at). We pull every
+    # dispatch for the referenced customers once and match in-memory.
+    def _parse_iso(s):
+        if not s:
+            return None
+        try:
+            d = datetime.fromisoformat(str(s).replace("Z", "+00:00")) if isinstance(s, str) else s
+            if d.tzinfo is None:
+                d = d.replace(tzinfo=timezone.utc)
+            return d
+        except Exception:
+            return None
+
+    cust_disp: Dict[str, List[Dict[str, Any]]] = {}
+    if cust_ids:
+        async for d in db.dispatches.find(
+            {"customer_id": {"$in": cust_ids}},
+            {"_id": 0, "id": 1, "slip_no": 1, "order_id": 1, "order_ids": 1,
+             "customer_id": 1, "items": 1, "dispatched_at": 1},
+        ):
+            cust_disp.setdefault(d.get("customer_id") or "", []).append(d)
+
     for o in items:
         days_open = None
         ref = o.get("order_date") or o.get("created_at")
@@ -1872,6 +1899,53 @@ async def list_orders(status_filter: Optional[str] = None, user=Depends(get_curr
             {"date": day, "items": list(rows.values())}
             for day, rows in sorted(day_map.items(), key=lambda kv: kv[0])
         ]
+
+        # Attach a discrepancy suggestion if one is found (and not dismissed).
+        o["discrepancy"] = None
+        if o.get("status") == "Pending" and not o.get("discrepancy_dismissed"):
+            entered = _parse_iso(o.get("created_at"))
+            # Set of this order's SKUs by id and by normalised name.
+            oid_ids = {it.get("item_id") for it in (o.get("items") or []) if it.get("item_id")}
+            oid_names = {(it.get("item_name") or "").strip().lower()
+                         for it in (o.get("items") or []) if it.get("item_name")}
+            best = None
+            best_dt = None
+            for d in cust_disp.get(o.get("customer_id") or "", []):
+                # Skip dispatches already linked to THIS order.
+                if d.get("order_id") == o["id"] or o["id"] in (d.get("order_ids") or []):
+                    continue
+                disp_dt = _parse_iso(d.get("dispatched_at"))
+                if not disp_dt or not entered:
+                    continue
+                # Core signal: goods shipped BEFORE this order was entered.
+                if not (disp_dt < entered):
+                    continue
+                # Require at least one shared SKU.
+                matched = []
+                for it in (d.get("items") or []):
+                    iid = it.get("item_id")
+                    inm = (it.get("item_name") or "").strip().lower()
+                    if (iid and iid in oid_ids) or (inm and inm in oid_names):
+                        matched.append({
+                            "item_name": it.get("item_name"),
+                            "product_name": it.get("product_name"),
+                            "variant": it.get("variant"),
+                            "quantity": int(it.get("quantity") or 0),
+                        })
+                if not matched:
+                    continue
+                # Prefer the most recent qualifying dispatch.
+                if best_dt is None or disp_dt > best_dt:
+                    best_dt = disp_dt
+                    best = {
+                        "dispatch_id": d.get("id"),
+                        "slip_no": d.get("slip_no"),
+                        "dispatched_at": d.get("dispatched_at"),
+                        "order_date": o.get("order_date"),
+                        "entered_at": o.get("created_at"),
+                        "items": matched,
+                    }
+            o["discrepancy"] = best
     return items
 
 
@@ -1931,6 +2005,87 @@ async def delete_order(oid: str, user=Depends(require_action("delete:orders"))):
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Order not found")
     return {"ok": True}
+
+
+class DiscrepancyResolveIn(BaseModel):
+    # One of: "update_date" | "clear" | "delete" | "keep"
+    action: str
+    dispatch_id: Optional[str] = None
+
+
+@api_router.post("/orders/{oid}/resolve-discrepancy")
+async def resolve_discrepancy(oid: str, body: DiscrepancyResolveIn,
+                              user=Depends(get_current_user)):
+    """Resolve a dispatch-before-order discrepancy on a Pending order.
+
+    Actions:
+      • update_date → set the order's date to the dispatch date, then dismiss.
+      • clear       → reconcile: link the dispatch to this order and mark the
+                      order Dispatched (its items were already shipped).
+      • delete      → remove this (duplicate) order entry.
+      • keep        → keep it Pending and stop flagging (dismiss the prompt).
+    """
+    action = (body.action or "").strip()
+    if action not in ("update_date", "clear", "delete", "keep"):
+        raise HTTPException(status_code=400, detail="Invalid action")
+
+    order = await db.orders.find_one({"id": oid}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    # Permission: deleting needs delete rights; everything else needs edit.
+    need = "delete:orders" if action == "delete" else "edit:orders"
+    if not has_action_permission(user, need):
+        raise HTTPException(status_code=403, detail="You don't have permission for this action.")
+
+    if action == "delete":
+        await db.orders.delete_one({"id": oid})
+        return {"ok": True, "action": action, "deleted": True}
+
+    if action == "keep":
+        await db.orders.update_one(
+            {"id": oid},
+            {"$set": {"discrepancy_dismissed": True, "updated_at": now_iso()}},
+        )
+        return {"ok": True, "action": action, "order": await db.orders.find_one({"id": oid}, {"_id": 0})}
+
+    # The remaining actions reference the matched dispatch.
+    disp = None
+    if body.dispatch_id:
+        disp = await db.dispatches.find_one({"id": body.dispatch_id}, {"_id": 0})
+    if not disp:
+        raise HTTPException(status_code=404, detail="Linked dispatch not found")
+
+    if action == "update_date":
+        # Align the order's date with the day the goods actually went out.
+        await db.orders.update_one(
+            {"id": oid},
+            {"$set": {"order_date": disp.get("dispatched_at") or order.get("order_date"),
+                      "discrepancy_dismissed": True, "updated_at": now_iso()}},
+        )
+        return {"ok": True, "action": action, "order": await db.orders.find_one({"id": oid}, {"_id": 0})}
+
+    # action == "clear" → reconcile the order against the existing dispatch.
+    # Link this order onto the dispatch for traceability …
+    order_ids = list(disp.get("order_ids") or [])
+    if oid not in order_ids:
+        order_ids.append(oid)
+    await db.dispatches.update_one(
+        {"id": disp["id"]},
+        {"$set": {"order_ids": order_ids, "order_fully_dispatched": True,
+                  "updated_at": now_iso()}},
+    )
+    # … and mark the order Dispatched (its items were already shipped).
+    if "original_items" not in order:
+        await db.orders.update_one(
+            {"id": oid}, {"$set": {"original_items": order.get("items") or []}}
+        )
+    await db.orders.update_one(
+        {"id": oid},
+        {"$set": {"items": [], "status": "Dispatched",
+                  "discrepancy_dismissed": True, "updated_at": now_iso()}},
+    )
+    return {"ok": True, "action": action, "order": await db.orders.find_one({"id": oid}, {"_id": 0})}
 
 
 # ======================== Dashboard Summary ========================

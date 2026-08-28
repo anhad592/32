@@ -243,16 +243,30 @@ frontend:
         agent: "testing"
         comment: "✅ ALL TESTS PASSED. Verified GET /orders endpoint with three views: (1) Pending view (status_filter=Pending) correctly returns 106 orders, all with status='Pending' and containing items array. (2) Dispatched view (status_filter=Dispatched) correctly returns 69 orders (14 Dispatched status + 55 partially-dispatched Pending orders), all with non-empty dispatched_items array. (3) All Status view (no filter) returns all 120 orders, each with dispatch_summary field (array). For 69 orders with dispatch history, validated: dispatch_summary structure is correct [{date: 'YYYY-MM-DD', items: [{item_id, item_name, product_name, variant, quantity}]}], all quantities > 0, and sum of dispatch_summary quantities matches dispatched_items totals. Auth working correctly (OTP disabled, direct token login). Test script: /app/test_orders_endpoint.py"
 
+  - task: "Orders discrepancy detection + resolve (dispatch before order entry)"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "GET /orders now attaches a `discrepancy` object to each still-Pending, non-dismissed order when an UNLINKED dispatch exists for the same customer, sharing ≥1 SKU, whose dispatched_at PRE-DATES the order's created_at (goods shipped before the order was punched). Fields: dispatch_id, slip_no, dispatched_at, order_date, entered_at, items[]. New endpoint POST /orders/{oid}/resolve-discrepancy with action in {update_date, clear, delete, keep}: update_date sets order_date=dispatch date & dismisses; clear links dispatch (order_ids) + marks order Dispatched (items emptied) + dismisses; delete removes the order (needs delete:orders); keep sets discrepancy_dismissed=true (stays Pending). Manually verified all 4 actions via curl on synthetic data (created dispatch dated 4 days ago + order created now / back-dated). Please regression-test: (1) discrepancy appears for such an order, (2) each of the 4 actions behaves correctly and the order stops being flagged afterwards, (3) permission gating (edit:orders for update_date/clear/keep, delete:orders for delete). Use admin@factory.com/admin123."
+      - working: true
+        agent: "testing"
+        comment: "✅ ALL TESTS PASSED (9/9). Comprehensive regression testing completed: (1) Discrepancy Detection: GET /orders correctly attaches discrepancy object to Pending orders when unlinked dispatch exists for same customer with shared SKU and dispatched_at < created_at. Verified all required fields (dispatch_id, slip_no, dispatched_at, order_date, entered_at, items[]) with correct values. (2) Resolve Actions: update_date correctly updates order_date to dispatch date, keeps status=Pending, dismisses discrepancy; clear correctly marks order status=Dispatched, empties items[], links dispatch (adds order_id to dispatch.order_ids), dismisses discrepancy; keep correctly keeps status=Pending and dismisses discrepancy; delete correctly removes order from database. (3) Error Handling: invalid action returns 400, unknown order_id returns 404, unknown dispatch_id returns 404, missing dispatch_id for update_date/clear returns 404. All discrepancies correctly disappear from subsequent GET /orders after dismissal. Test fixtures created in MongoDB (6 order+dispatch pairs with dispatched_at 4 days ago, created_at now) and cleaned up successfully. Test script: /app/test_discrepancy.py"
+
 metadata:
   created_by: "testing_agent"
   version: "1.0"
-  test_sequence: 2
+  test_sequence: 3
   run_ui: false
-  last_tested: "2026-08-08T14:10:00Z"
+  last_tested: "2026-08-28T15:35:00Z"
 
 test_plan:
-  current_focus:
-    - "Orders list — Pending / Dispatched / All Status views"
+  current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -264,3 +278,5 @@ agent_communication:
     message: "Restored the Factory Order Management app from GitHub repo into /app fresh environment. Added JWT_SECRET and EMERGENT_LLM_KEY to backend/.env, installed missing pip deps (reportlab, apscheduler, rapidfuzz, openpyxl, stripe, pytz) and ran yarn install. Backend running (seeded users/products/SKUs), frontend compiles. Please re-verify the core auth flow works in this fresh environment: admin OTP login (admin@factory.com/admin123 -> otp_required, read code from backend logs, verify-otp), non-OTP user direct login (user@factory.com/user123), and GET /auth/me. This is a restore verification, focus on smoke-testing the auth endpoints."
   - agent: "testing"
     message: "✅ Orders endpoint testing complete. All three views working correctly: (1) Pending view returns only Pending orders with items, (2) Dispatched view includes both fully-dispatched and partially-dispatched orders with dispatched_items populated, (3) All Status view returns all orders with dispatch_summary field correctly structured and validated. The new dispatch_summary field is present on all orders, correctly groups dispatches by date (YYYY-MM-DD), and quantities match the aggregated dispatched_items. No issues found. Test script available at /app/test_orders_endpoint.py for regression testing."
+  - agent: "testing"
+    message: "✅ Order discrepancy feature regression testing complete. All 9 tests passed: discrepancy detection correctly identifies dispatch-before-order scenarios with all required fields; all 4 resolve actions (update_date, clear, keep, delete) work correctly with proper status changes, data updates, and discrepancy dismissal; all error cases (invalid action, unknown order, unknown dispatch) return correct HTTP status codes. Test fixtures created in MongoDB and cleaned up successfully. No issues found. Test script available at /app/test_discrepancy.py for future regression testing."

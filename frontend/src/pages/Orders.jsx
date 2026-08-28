@@ -131,6 +131,21 @@ export default function Orders() {
     });
   };
 
+  // Resolve a dispatch-before-order discrepancy. `action` is one of
+  // update_date | clear | delete | keep. Reloads the list afterwards.
+  const resolveDiscrepancy = async (order, action) => {
+    try {
+      await api.post(`/orders/${order.id}/resolve-discrepancy`, {
+        action,
+        dispatch_id: order.discrepancy?.dispatch_id,
+      });
+      toast.success(action === "delete" ? t("orders.discDeleted") : t("orders.discResolved"));
+      load({ silent: true });
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || t("common.failed"));
+    }
+  };
+
   return (
     <div className="space-y-5" data-testid="orders-page">
       <div className="flex items-end justify-between flex-wrap gap-3">
@@ -214,6 +229,54 @@ export default function Orders() {
                         what's still pending. */}
                     {filter === "all" && (
                       <div className="mt-2 space-y-1.5" data-testid={`order-brief-${o.id}`}>
+                        {o.discrepancy && (
+                          <div className="rounded-sm border border-amber-300 bg-amber-50 p-2.5" data-testid={`order-discrepancy-${o.id}`}>
+                            <div className="flex items-start gap-2">
+                              <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                              <div className="min-w-0">
+                                <div className="text-xs font-bold text-amber-900">{t("orders.discTitle")}</div>
+                                <div className="text-[11px] text-slate-700 mt-0.5 leading-relaxed">
+                                  {t("orders.discMsg", {
+                                    disp: fmtDate(o.discrepancy.dispatched_at),
+                                    slip: o.discrepancy.slip_no,
+                                    entered: fmtDate(o.discrepancy.entered_at),
+                                  })}
+                                </div>
+                                <div className="mt-1.5 flex flex-wrap gap-1">
+                                  {o.discrepancy.items?.map((it, i) => (
+                                    <ItemChip key={`disc-${i}`} it={it} tone="dispatched" />
+                                  ))}
+                                </div>
+                                {canEditOrders && (
+                                  <div className="mt-2 flex flex-wrap gap-1.5">
+                                    <Button size="sm" onClick={() => resolveDiscrepancy(o, "clear")}
+                                            data-testid={`disc-clear-${o.id}`}
+                                            className="h-8 rounded-sm bg-[#E65100] hover:bg-[#CC4800] text-white text-xs font-bold">
+                                      {t("orders.discActClear")}
+                                    </Button>
+                                    <Button size="sm" variant="outline" onClick={() => resolveDiscrepancy(o, "update_date")}
+                                            data-testid={`disc-updatedate-${o.id}`}
+                                            className="h-8 rounded-sm text-xs font-semibold">
+                                      {t("orders.discActUpdateDate")}
+                                    </Button>
+                                    <Button size="sm" variant="outline" onClick={() => resolveDiscrepancy(o, "keep")}
+                                            data-testid={`disc-keep-${o.id}`}
+                                            className="h-8 rounded-sm text-xs font-semibold">
+                                      {t("orders.discActKeep")}
+                                    </Button>
+                                    {canDeleteOrders && (
+                                      <Button size="sm" variant="outline" onClick={() => resolveDiscrepancy(o, "delete")}
+                                              data-testid={`disc-delete-${o.id}`}
+                                              className="h-8 rounded-sm text-xs font-semibold text-red-600 border-red-200 hover:bg-red-50">
+                                        {t("orders.discActDelete")}
+                                      </Button>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
                         {o.dispatch_summary?.map((grp, gi) => (
                           <div key={`g-${gi}`} className="flex flex-wrap items-center gap-1.5">
                             <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded-sm">
