@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Plus, Search, Trash2, Edit3, AlertTriangle, Truck, Clock, CheckCircle2 } from "lucide-react";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/auth";
 import OrderEditDialog from "@/components/OrderEditDialog";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -161,20 +160,23 @@ export default function Orders() {
 
       <div className="bg-white border border-slate-200 rounded-sm">
         <div className="p-4 border-b border-slate-200 flex flex-col sm:flex-row gap-3 sm:items-center">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <div className="relative flex-1 w-full">
+            <Search className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <Input data-testid="orders-search" placeholder={t("orders.searchPlaceholder")}
                    value={q} onChange={(e) => setQ(e.target.value)}
-                   className="pl-9 h-10 rounded-sm" />
+                   className="pl-11 h-12 text-base rounded-sm" />
           </div>
-          <Tabs value={filter} onValueChange={setFilter} className="w-full sm:w-auto">
-            <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full sm:inline-flex sm:w-auto">
-              <TabsTrigger value="Pending" data-testid="orders-tab-pending">{t("orders.tabPending")}</TabsTrigger>
-              <TabsTrigger value="Dispatched" data-testid="orders-tab-dispatched">{t("orders.tabDispatched")}</TabsTrigger>
-              <TabsTrigger value="Cleared" data-testid="orders-tab-cleared">{t("orders.status.Cleared", "Cleared")}</TabsTrigger>
-              <TabsTrigger value="all" data-testid="orders-tab-all">{t("orders.tabAll")}</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <Select value={filter} onValueChange={setFilter}>
+            <SelectTrigger data-testid="orders-filter" className="w-full sm:w-52 h-12 rounded-sm text-base">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Pending" data-testid="orders-tab-pending">{t("orders.tabPending")}</SelectItem>
+              <SelectItem value="Dispatched" data-testid="orders-tab-dispatched">{t("orders.tabDispatched")}</SelectItem>
+              <SelectItem value="Cleared" data-testid="orders-tab-cleared">{t("orders.status.Cleared", "Cleared")}</SelectItem>
+              <SelectItem value="all" data-testid="orders-tab-all">{t("orders.tabAll")}</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {loading ? (
