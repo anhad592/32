@@ -228,18 +228,31 @@ backend:
 frontend:
   # No frontend testing performed as per system prompt instructions
 
+  - task: "Orders list — Pending / Dispatched / All Status views"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Updated GET /orders. status_filter='Pending' returns only Pending-status orders (remaining items in o.items). status_filter='Dispatched' returns Dispatched/Cleared plus partially-dispatched orders with o.dispatched_items populated. New field o.dispatch_summary added to EVERY order = date-grouped list [{date: 'YYYY-MM-DD', items:[{item_name,product_name,variant,quantity}]}] aggregated from dispatches (dispatched_at). All-status view (no filter) should return all 120 orders each carrying items (pending), dispatched_items (aggregate) and dispatch_summary (by date). Please verify: (1) GET /orders?status_filter=Pending only returns status==Pending, (2) GET /orders?status_filter=Dispatched includes dispatched/partial orders with dispatched_items, (3) GET /orders returns dispatch_summary on orders that have dispatches, correctly grouped by date with correct quantities. Use admin@factory.com/admin123."
+      - working: true
+        agent: "testing"
+        comment: "✅ ALL TESTS PASSED. Verified GET /orders endpoint with three views: (1) Pending view (status_filter=Pending) correctly returns 106 orders, all with status='Pending' and containing items array. (2) Dispatched view (status_filter=Dispatched) correctly returns 69 orders (14 Dispatched status + 55 partially-dispatched Pending orders), all with non-empty dispatched_items array. (3) All Status view (no filter) returns all 120 orders, each with dispatch_summary field (array). For 69 orders with dispatch history, validated: dispatch_summary structure is correct [{date: 'YYYY-MM-DD', items: [{item_id, item_name, product_name, variant, quantity}]}], all quantities > 0, and sum of dispatch_summary quantities matches dispatched_items totals. Auth working correctly (OTP disabled, direct token login). Test script: /app/test_orders_endpoint.py"
+
 metadata:
   created_by: "testing_agent"
   version: "1.0"
-  test_sequence: 1
+  test_sequence: 2
   run_ui: false
-  last_tested: "2026-08-08T13:25:00Z"
+  last_tested: "2026-08-08T14:10:00Z"
 
 test_plan:
   current_focus:
-    - "Admin login with OTP (step 1)"
-    - "Non-OTP user direct login"
-    - "GET /auth/me endpoint"
+    - "Orders list — Pending / Dispatched / All Status views"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -249,3 +262,5 @@ agent_communication:
     message: "Completed comprehensive backend testing of auth + OTP + permissions features. All 8 test cases passed successfully. Note: Had to reset admin and user passwords in database as they were not matching expected values (admin123/user123). Also reset user's otp_login back to false to match seeded state. Test credentials documented in /app/memory/test_credentials.md. Backend test script available at /app/backend_test.py for future regression testing."
   - agent: "main"
     message: "Restored the Factory Order Management app from GitHub repo into /app fresh environment. Added JWT_SECRET and EMERGENT_LLM_KEY to backend/.env, installed missing pip deps (reportlab, apscheduler, rapidfuzz, openpyxl, stripe, pytz) and ran yarn install. Backend running (seeded users/products/SKUs), frontend compiles. Please re-verify the core auth flow works in this fresh environment: admin OTP login (admin@factory.com/admin123 -> otp_required, read code from backend logs, verify-otp), non-OTP user direct login (user@factory.com/user123), and GET /auth/me. This is a restore verification, focus on smoke-testing the auth endpoints."
+  - agent: "testing"
+    message: "✅ Orders endpoint testing complete. All three views working correctly: (1) Pending view returns only Pending orders with items, (2) Dispatched view includes both fully-dispatched and partially-dispatched orders with dispatched_items populated, (3) All Status view returns all orders with dispatch_summary field correctly structured and validated. The new dispatch_summary field is present on all orders, correctly groups dispatches by date (YYYY-MM-DD), and quantities match the aggregated dispatched_items. No issues found. Test script available at /app/test_orders_endpoint.py for regression testing."

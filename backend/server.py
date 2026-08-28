@@ -1802,21 +1802,36 @@ async def list_orders(status_filter: Optional[str] = None, user=Depends(get_curr
     # dispatches collection so the UI can show "what was dispatched".
     order_ids = [o["id"] for o in items]
     disp_map: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    # Date-grouped dispatch history per order → powers the "All Status" brief
+    # (what was shipped, and on which day). oid → dayISO → item_key → row
+    disp_dates: Dict[str, Dict[str, Dict[str, Dict[str, Any]]]] = {}
     if order_ids:
         oid_set = set(order_ids)
         async for d in db.dispatches.find(
             {"$or": [{"order_id": {"$in": order_ids}}, {"order_ids": {"$in": order_ids}}]},
-            {"_id": 0, "order_id": 1, "order_ids": 1, "items": 1},
+            {"_id": 0, "order_id": 1, "order_ids": 1, "items": 1,
+             "dispatched_at": 1, "last_dispatched_at": 1, "slip_no": 1},
         ):
             targets = []
             if d.get("order_id") in oid_set:
                 targets = [d["order_id"]]
             else:
                 targets = [oid for oid in (d.get("order_ids") or []) if oid in oid_set]
+            # Resolve the dispatch day (YYYY-MM-DD) for grouping the brief.
+            dts = d.get("dispatched_at") or d.get("last_dispatched_at")
+            day = ""
+            if dts:
+                try:
+                    dd = datetime.fromisoformat(str(dts).replace("Z", "+00:00"))
+                    day = dd.date().isoformat()
+                except Exception:
+                    day = str(dts)[:10]
             for oid in targets:
                 bucket = disp_map.setdefault(oid, {})
+                day_bucket = disp_dates.setdefault(oid, {}).setdefault(day, {})
                 for it in (d.get("items") or []):
                     key = it.get("item_id") or it.get("item_name") or ""
+                    qty = int(it.get("quantity") or 0)
                     row = bucket.setdefault(key, {
                         "item_id": it.get("item_id"),
                         "item_name": it.get("item_name"),
@@ -1824,7 +1839,15 @@ async def list_orders(status_filter: Optional[str] = None, user=Depends(get_curr
                         "variant": it.get("variant"),
                         "quantity": 0,
                     })
-                    row["quantity"] += int(it.get("quantity") or 0)
+                    row["quantity"] += qty
+                    drow = day_bucket.setdefault(key, {
+                        "item_id": it.get("item_id"),
+                        "item_name": it.get("item_name"),
+                        "product_name": it.get("product_name"),
+                        "variant": it.get("variant"),
+                        "quantity": 0,
+                    })
+                    drow["quantity"] += qty
 
     for o in items:
         days_open = None
@@ -1843,6 +1866,12 @@ async def list_orders(status_filter: Optional[str] = None, user=Depends(get_curr
         o["customer_city"] = loc.get("city", "")
         o["customer_location"] = loc.get("location", "")
         o["dispatched_items"] = list(disp_map.get(o["id"], {}).values())
+        # Date-grouped brief: [{date, items:[...]}, ...] sorted oldest→newest.
+        day_map = disp_dates.get(o["id"], {})
+        o["dispatch_summary"] = [
+            {"date": day, "items": list(rows.values())}
+            for day, rows in sorted(day_map.items(), key=lambda kv: kv[0])
+        ]
     return items
 
 

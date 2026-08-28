@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Plus, Search, Filter, Trash2, Edit3, AlertTriangle } from "lucide-react";
+import { Plus, Search, Trash2, Edit3, AlertTriangle, Truck, Clock, CheckCircle2 } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/auth";
 import OrderEditDialog from "@/components/OrderEditDialog";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -24,6 +25,31 @@ function StatusBadge({ status }) {
   }[status] || "badge-pending";
   return <span className={`badge-status ${cls}`}>{t(`orders.status.${status}`, status)}</span>;
 }
+
+// A compact chip for a single order line. `tone` switches the palette so the
+// same component renders both pending (slate) and dispatched (indigo) items.
+function ItemChip({ it, tone = "pending", testid }) {
+  const cls = tone === "dispatched"
+    ? "bg-indigo-50 text-indigo-900 border-indigo-200"
+    : "bg-slate-100 text-slate-800 border-slate-200";
+  const subCls = tone === "dispatched" ? "text-indigo-400" : "text-slate-400";
+  return (
+    <span title={it.product_name || ""} data-testid={testid}
+          className={`text-xs px-2 py-1 rounded-sm border ${cls}`}>
+      <span className="font-semibold">{it.item_name || it.product_name}</span>
+      {it.variant ? ` (${it.variant})` : ""}: <span className="font-mono-num font-bold">{it.quantity}</span>
+      {it.product_name && it.item_name && it.product_name !== it.item_name && (
+        <span className={`text-[10px] ml-1 ${subCls}`}>· {it.product_name}</span>
+      )}
+    </span>
+  );
+}
+
+const fmtDate = (d) => {
+  if (!d) return "";
+  const dt = new Date(d);
+  return isNaN(dt.getTime()) ? d : dt.toLocaleDateString();
+};
 
 export default function Orders() {
   const { isAdmin, canAct } = useAuth();
@@ -119,23 +145,20 @@ export default function Orders() {
       </div>
 
       <div className="bg-white border border-slate-200 rounded-sm">
-        <div className="p-4 border-b border-slate-200 flex flex-col sm:flex-row gap-3">
+        <div className="p-4 border-b border-slate-200 flex flex-col sm:flex-row gap-3 sm:items-center">
+          <Tabs value={filter} onValueChange={setFilter} className="w-full sm:w-auto">
+            <TabsList className="grid grid-cols-3 w-full sm:inline-flex sm:w-auto">
+              <TabsTrigger value="Pending" data-testid="orders-tab-pending">{t("orders.tabPending")}</TabsTrigger>
+              <TabsTrigger value="Dispatched" data-testid="orders-tab-dispatched">{t("orders.tabDispatched")}</TabsTrigger>
+              <TabsTrigger value="all" data-testid="orders-tab-all">{t("orders.tabAll")}</TabsTrigger>
+            </TabsList>
+          </Tabs>
           <div className="relative flex-1">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <Input data-testid="orders-search" placeholder={t("orders.searchPlaceholder")}
                    value={q} onChange={(e) => setQ(e.target.value)}
                    className="pl-9 h-10 rounded-sm" />
           </div>
-          <Select value={filter} onValueChange={setFilter}>
-            <SelectTrigger data-testid="orders-filter" className="w-full sm:w-44 h-10 rounded-sm">
-              <Filter className="w-3 h-3 mr-1" />
-              <SelectValue placeholder={t("common.status")} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("orders.allStatus")}</SelectItem>
-              {STATUSES.map((s) => <SelectItem key={s} value={s}>{t(`orders.status.${s}`, s)}</SelectItem>)}
-            </SelectContent>
-          </Select>
         </div>
 
         {loading ? (
@@ -165,39 +188,64 @@ export default function Orders() {
                       #{o.id.slice(0, 8)} · {new Date(o.order_date || o.created_at).toLocaleDateString()}
                       {o.delivery_date && <> · {t("orders.delivery")}: {new Date(o.delivery_date).toLocaleDateString()}</>}
                     </div>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {filter !== "Dispatched" && o.items?.map((it, i) => (
-                        <span key={i}
-                              title={it.product_name || ""}
-                              className="text-xs bg-slate-100 text-slate-800 px-2 py-1 rounded-sm border border-slate-200">
-                          <span className="font-semibold">{it.item_name || it.product_name}</span>
-                          {it.variant ? ` (${it.variant})` : ""}: <span className="font-mono-num font-bold">{it.quantity}</span>
-                          {it.product_name && it.item_name && it.product_name !== it.item_name && (
-                            <span className="text-[10px] text-slate-400 ml-1">· {it.product_name}</span>
-                          )}
-                        </span>
-                      ))}
-                      {/* In the "Dispatched" view, show the quantities actually
-                          shipped for each order — this also surfaces PARTIALLY
-                          dispatched orders (still Pending) so the shipped qty is
-                          never hidden. The Pending/All views stay clean. */}
-                      {filter === "Dispatched" && o.dispatched_items?.length > 0 && (
-                        <div className="w-full flex flex-wrap items-center gap-1.5 mt-0.5">
-                          {o.dispatched_items.map((it, i) => (
-                            <span key={`d-${i}`}
-                                  title={it.product_name || ""}
-                                  data-testid={`order-dispatched-item-${o.id}-${i}`}
-                                  className="text-xs bg-indigo-50 text-indigo-900 px-2 py-1 rounded-sm border border-indigo-200">
-                              <span className="font-semibold">{it.item_name || it.product_name}</span>
-                              {it.variant ? ` (${it.variant})` : ""}: <span className="font-mono-num font-bold">{it.quantity}</span>
-                              {it.product_name && it.item_name && it.product_name !== it.item_name && (
-                                <span className="text-[10px] text-indigo-400 ml-1">· {it.product_name}</span>
-                              )}
+                    {/* PENDING tab — remaining (still-open) items only */}
+                    {filter === "Pending" && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {o.items?.map((it, i) => (
+                          <ItemChip key={i} it={it} tone="pending" />
+                        ))}
+                      </div>
+                    )}
+
+                    {/* DISPATCHED tab — quantities actually shipped. Includes
+                        PARTIALLY dispatched orders so shipped qty is never hidden. */}
+                    {filter === "Dispatched" && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {o.dispatched_items?.length > 0
+                          ? o.dispatched_items.map((it, i) => (
+                              <ItemChip key={`d-${i}`} it={it} tone="dispatched"
+                                        testid={`order-dispatched-item-${o.id}-${i}`} />
+                            ))
+                          : <span className="text-xs text-slate-400">{t("orders.briefNoDispatch")}</span>}
+                      </div>
+                    )}
+
+                    {/* ALL STATUS tab — full brief: what shipped & when, plus
+                        what's still pending. */}
+                    {filter === "all" && (
+                      <div className="mt-2 space-y-1.5" data-testid={`order-brief-${o.id}`}>
+                        {o.dispatch_summary?.map((grp, gi) => (
+                          <div key={`g-${gi}`} className="flex flex-wrap items-center gap-1.5">
+                            <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded-sm">
+                              <Truck className="w-3 h-3" /> {t("orders.briefDispatchedOn", { date: fmtDate(grp.date) })}
                             </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                            {grp.items.map((it, i) => (
+                              <ItemChip key={`gi-${i}`} it={it} tone="dispatched"
+                                        testid={`order-brief-dispatched-${o.id}-${gi}-${i}`} />
+                            ))}
+                          </div>
+                        ))}
+                        {o.items?.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider font-bold text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-sm">
+                              <Clock className="w-3 h-3" /> {t("orders.briefPending")}
+                            </span>
+                            {o.items.map((it, i) => (
+                              <ItemChip key={`p-${i}`} it={it} tone="pending"
+                                        testid={`order-brief-pending-${o.id}-${i}`} />
+                            ))}
+                          </div>
+                        )}
+                        {(!o.items || o.items.length === 0) && o.dispatch_summary?.length > 0 && (
+                          <div className="text-[11px] font-semibold text-emerald-700 inline-flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" /> {t("orders.briefFullyDispatched")}
+                          </div>
+                        )}
+                        {(!o.items || o.items.length === 0) && (!o.dispatch_summary || o.dispatch_summary.length === 0) && (
+                          <span className="text-xs text-slate-400">{t("orders.briefNoDispatch")}</span>
+                        )}
+                      </div>
+                    )}
                     {o.notes && <div className="mt-2 text-xs text-slate-500 italic">&ldquo;{o.notes}&rdquo;</div>}
                   </div>
                   <div className="flex items-center gap-2 w-full sm:w-auto">
