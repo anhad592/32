@@ -70,8 +70,11 @@ export default function Orders() {
     // position — the user stays exactly where they were.
     if (!opts.silent) setLoading(true);
     try {
-      const params = filter !== "all" ? { status_filter: filter } : {};
-      const { data } = await api.get("/orders", { params });
+      // "discrepancy" is a client-side view over ALL orders (the backend
+      // only annotates discrepancies, it doesn't filter by them), so we
+      // fetch everything and narrow it down in `filtered` below.
+      const serverFilter = (filter === "all" || filter === "discrepancy") ? {} : { status_filter: filter };
+      const { data } = await api.get("/orders", { params: serverFilter });
       setOrders(data);
     } catch (e) {
       toast.error(t("orders.loadFailed"));
@@ -96,6 +99,8 @@ export default function Orders() {
   }, [highlightId, orders]);
 
   const filtered = orders.filter((o) => {
+    // Discrepancy view — only orders flagged with a timing discrepancy.
+    if (filter === "discrepancy" && !o.discrepancy) return false;
     if (!q) return true;
     const s = q.toLowerCase();
     return o.customer_name.toLowerCase().includes(s) ||
@@ -171,10 +176,11 @@ export default function Orders() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="all" data-testid="orders-tab-all">{t("orders.tabAll")}</SelectItem>
               <SelectItem value="Pending" data-testid="orders-tab-pending">{t("orders.tabPending")}</SelectItem>
               <SelectItem value="Dispatched" data-testid="orders-tab-dispatched">{t("orders.tabDispatched")}</SelectItem>
               <SelectItem value="Cleared" data-testid="orders-tab-cleared">{t("orders.status.Cleared", "Cleared")}</SelectItem>
-              <SelectItem value="all" data-testid="orders-tab-all">{t("orders.tabAll")}</SelectItem>
+              <SelectItem value="discrepancy" data-testid="orders-tab-discrepancy">{t("orders.tabDiscrepancy")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -241,7 +247,7 @@ export default function Orders() {
 
                     {/* ALL STATUS tab — full brief: what shipped & when, plus
                         what's still pending. */}
-                    {filter === "all" && (
+                    {(filter === "all" || filter === "discrepancy") && (
                       <div className="mt-2 space-y-1.5" data-testid={`order-brief-${o.id}`}>
                         {o.discrepancy && (
                           <div className="rounded-sm border border-amber-300 bg-amber-50 p-2.5" data-testid={`order-discrepancy-${o.id}`}>

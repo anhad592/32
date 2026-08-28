@@ -133,6 +133,7 @@
     "tabPending": "लंबित",
     "tabDispatched": "डिस्पैच",
     "tabAll": "सभी स्थिति",
+    "tabDiscrepancy": "विसंगति",
     "briefDispatchedOn": "डिस्पैच · {{date}}",
     "briefPending": "अभी लंबित",
     "briefFullyDispatched": "पूरी तरह डिस्पैच — कुछ भी लंबित नहीं",

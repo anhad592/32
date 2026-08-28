@@ -133,6 +133,7 @@
     "tabPending": "Pending",
     "tabDispatched": "Dispatched",
     "tabAll": "All Status",
+    "tabDiscrepancy": "Discrepancy",
     "briefDispatchedOn": "Dispatched · {{date}}",
     "briefPending": "Still pending",
     "briefFullyDispatched": "Fully dispatched — nothing pending",
