@@ -168,9 +168,10 @@ export default function Orders() {
                    className="pl-9 h-10 rounded-sm" />
           </div>
           <Tabs value={filter} onValueChange={setFilter} className="w-full sm:w-auto">
-            <TabsList className="grid grid-cols-3 w-full sm:inline-flex sm:w-auto">
+            <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full sm:inline-flex sm:w-auto">
               <TabsTrigger value="Pending" data-testid="orders-tab-pending">{t("orders.tabPending")}</TabsTrigger>
               <TabsTrigger value="Dispatched" data-testid="orders-tab-dispatched">{t("orders.tabDispatched")}</TabsTrigger>
+              <TabsTrigger value="Cleared" data-testid="orders-tab-cleared">{t("orders.status.Cleared", "Cleared")}</TabsTrigger>
               <TabsTrigger value="all" data-testid="orders-tab-all">{t("orders.tabAll")}</TabsTrigger>
             </TabsList>
           </Tabs>
@@ -222,6 +223,17 @@ export default function Orders() {
                                         testid={`order-dispatched-item-${o.id}-${i}`} />
                             ))
                           : <span className="text-xs text-slate-400">{t("orders.briefNoDispatch")}</span>}
+                      </div>
+                    )}
+
+                    {/* CLEARED tab — closed orders. Show the order's items
+                        (falling back to shipped items if the list was emptied). */}
+                    {filter === "Cleared" && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {(o.items?.length > 0 ? o.items : (o.dispatched_items || [])).map((it, i) => (
+                          <ItemChip key={`c-${i}`} it={it}
+                                    tone={o.items?.length > 0 ? "pending" : "dispatched"} />
+                        ))}
                       </div>
                     )}
 
