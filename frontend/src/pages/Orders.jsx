@@ -161,6 +161,12 @@ export default function Orders() {
 
       <div className="bg-white border border-slate-200 rounded-sm">
         <div className="p-4 border-b border-slate-200 flex flex-col sm:flex-row gap-3 sm:items-center">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Input data-testid="orders-search" placeholder={t("orders.searchPlaceholder")}
+                   value={q} onChange={(e) => setQ(e.target.value)}
+                   className="pl-9 h-10 rounded-sm" />
+          </div>
           <Tabs value={filter} onValueChange={setFilter} className="w-full sm:w-auto">
             <TabsList className="grid grid-cols-3 w-full sm:inline-flex sm:w-auto">
               <TabsTrigger value="Pending" data-testid="orders-tab-pending">{t("orders.tabPending")}</TabsTrigger>
@@ -168,12 +174,6 @@ export default function Orders() {
               <TabsTrigger value="all" data-testid="orders-tab-all">{t("orders.tabAll")}</TabsTrigger>
             </TabsList>
           </Tabs>
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <Input data-testid="orders-search" placeholder={t("orders.searchPlaceholder")}
-                   value={q} onChange={(e) => setQ(e.target.value)}
-                   className="pl-9 h-10 rounded-sm" />
-          </div>
         </div>
 
         {loading ? (
