@@ -273,12 +273,27 @@ frontend:
         agent: "testing"
         comment: "✅ ALL 9 TESTS PASSED. Comprehensive OTP login feature testing completed successfully: (0) Admin login with otp_login=false correctly returns direct token. (1) GET /users successfully retrieves user list and found user@factory.com with id=be0c3c5f-d273-43d2-9355-6bbdcc94db86. (2) PATCH /users/{id}/otp with otp_login=true successfully enabled OTP for user@factory.com. (3) POST /auth/login for user@factory.com correctly returns otp_required=true, challenge_id, sent_to (null), email_sent (false), and NO token field. (4) OTP code successfully read from backend logs (/var/log/supervisor/backend.err.log) using pattern 'Admin OTP for user@factory.com (challenge <cid>): <6-digit-code>'. (5) POST /auth/verify-otp with correct code successfully returns token and user object with role='user'. (6) Negative test: POST /auth/verify-otp with wrong code '000000' correctly returns 401 status with no token. (7) PATCH /users/{id}/otp with otp_login=false successfully disabled OTP. (7b) POST /auth/login for user@factory.com after OTP disable correctly returns direct token with no otp_required field. The optional, admin-toggleable email-OTP login feature is fully functional. Test script: /app/test_otp_login.py"
 
+  - task: "Orders include customer_address in GET /orders"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added `customer_address` to each order returned by GET /orders (alongside existing customer_city and customer_location), sourced from the customer's `address` field. Please verify GET /orders (admin@factory.com/admin123) returns customer_address on every order, populated for orders whose customer has an address on file, and empty string otherwise. Also confirm the existing discrepancy field and dispatch_summary are unaffected."
+      - working: true
+        agent: "testing"
+        comment: "✅ VERIFIED. GET /orders correctly returns customer_address field on ALL 120 orders. Field is properly typed as string, populated from customer's address field (all 120 orders in test dataset have addresses). Confirmed existing fields are unaffected: discrepancy field present on all orders, dispatch_summary field present and correctly structured on all orders (75 orders with dispatch history verified). Auth working correctly (admin@factory.com direct token login). Test script: /app/test_customer_address.py"
+
 metadata:
   created_by: "testing_agent"
   version: "1.0"
-  test_sequence: 4
+  test_sequence: 5
   run_ui: false
-  last_tested: "2026-08-29T18:50:10Z"
+  last_tested: "2026-08-29T19:15:00Z"
 
 test_plan:
   current_focus: []
@@ -297,3 +312,5 @@ agent_communication:
     message: "✅ Order discrepancy feature regression testing complete. All 9 tests passed: discrepancy detection correctly identifies dispatch-before-order scenarios with all required fields; all 4 resolve actions (update_date, clear, keep, delete) work correctly with proper status changes, data updates, and discrepancy dismissal; all error cases (invalid action, unknown order, unknown dispatch) return correct HTTP status codes. Test fixtures created in MongoDB and cleaned up successfully. No issues found. Test script available at /app/test_discrepancy.py for future regression testing."
   - agent: "testing"
     message: "✅ OTP login feature restoration testing complete. All 9 tests passed successfully: (1) Admin login with otp_login=false returns direct token, (2) GET /users retrieves user list, (3) PATCH /users/{id}/otp enables OTP, (4) Login with OTP enabled returns otp_required=true with challenge_id and no token, (5) OTP code successfully read from backend logs, (6) OTP verification with correct code returns token and user object, (7) Wrong OTP code correctly rejected with 401, (8) PATCH /users/{id}/otp disables OTP, (9) Login after OTP disable returns direct token. The optional, admin-toggleable email-OTP login feature is fully functional. Test script: /app/test_otp_login.py"
+  - agent: "testing"
+    message: "✅ customer_address field verification complete. GET /orders correctly returns customer_address string field on ALL 120 orders, populated from customer's address field. Confirmed existing discrepancy and dispatch_summary fields are unaffected and correctly structured. Read-only test completed successfully. Test script: /app/test_customer_address.py"

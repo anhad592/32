@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Plus, Search, Trash2, Edit3, AlertTriangle, Truck, Clock, CheckCircle2 } from "lucide-react";
+import { Plus, Search, Trash2, Edit3, AlertTriangle, Truck, Clock, CheckCircle2, MapPin } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import OrderEditDialog from "@/components/OrderEditDialog";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -62,6 +62,7 @@ export default function Orders() {
   const [filter, setFilter] = useState(searchParams.get("status") || "all");
   const [editTarget, setEditTarget] = useState(null);
   const [highlightId, setHighlightId] = useState(null);
+  const [discCount, setDiscCount] = useState(0);
   const { state: confirmState, confirm, close: closeConfirm } = useConfirm();
 
   const load = async (opts = {}) => {
@@ -76,9 +77,25 @@ export default function Orders() {
       const serverFilter = (filter === "all" || filter === "discrepancy") ? {} : { status_filter: filter };
       const { data } = await api.get("/orders", { params: serverFilter });
       setOrders(data);
+      // Keep the discrepancy badge accurate whenever we already hold the
+      // full (unfiltered) dataset; otherwise refresh it separately.
+      if (filter === "all" || filter === "discrepancy") {
+        setDiscCount(data.filter((o) => o.discrepancy).length);
+      } else {
+        loadDiscCount();
+      }
     } catch (e) {
       toast.error(t("orders.loadFailed"));
     } finally { setLoading(false); }
+  };
+
+  // Standalone count of orders flagged with a timing discrepancy, used for
+  // the badge on the "Discrepancy" filter option.
+  const loadDiscCount = async () => {
+    try {
+      const { data } = await api.get("/orders");
+      setDiscCount(data.filter((o) => o.discrepancy).length);
+    } catch (e) { /* non-critical — leave prior count */ }
   };
 
   useEffect(() => { load(); }, [filter]);
@@ -180,9 +197,27 @@ export default function Orders() {
               <SelectItem value="Pending" data-testid="orders-tab-pending">{t("orders.tabPending")}</SelectItem>
               <SelectItem value="Dispatched" data-testid="orders-tab-dispatched">{t("orders.tabDispatched")}</SelectItem>
               <SelectItem value="Cleared" data-testid="orders-tab-cleared">{t("orders.status.Cleared", "Cleared")}</SelectItem>
-              <SelectItem value="discrepancy" data-testid="orders-tab-discrepancy">{t("orders.tabDiscrepancy")}</SelectItem>
+              <SelectItem value="discrepancy" data-testid="orders-tab-discrepancy">
+                <span className="inline-flex items-center gap-2">
+                  {t("orders.tabDiscrepancy")}
+                  {discCount > 0 && (
+                    <span data-testid="orders-discrepancy-badge"
+                          className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500 text-white text-[10px] font-bold leading-none">
+                      {discCount}
+                    </span>
+                  )}
+                </span>
+              </SelectItem>
             </SelectContent>
           </Select>
+          {discCount > 0 && filter !== "discrepancy" && (
+            <button type="button" onClick={() => setFilter("discrepancy")}
+                    data-testid="orders-discrepancy-pill"
+                    className="inline-flex items-center gap-1.5 h-12 px-3 rounded-sm border border-amber-300 bg-amber-50 text-amber-800 text-sm font-bold hover:bg-amber-100 transition whitespace-nowrap">
+              <AlertTriangle className="w-4 h-4" />
+              {discCount}
+            </button>
+          )}
         </div>
 
         {loading ? (
@@ -199,6 +234,14 @@ export default function Orders() {
                   <div className="flex-1 min-w-[200px]">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-bold text-slate-900">{o.customer_name}</span>
+                      {(o.customer_address || o.customer_city || o.customer_location) && (
+                        <span className="text-xs text-slate-600 inline-flex items-center gap-1"
+                              data-testid={`order-address-${o.id}`}>
+                          <MapPin className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                          {[o.customer_address, o.customer_location, o.customer_city]
+                            .filter(Boolean).join(", ")}
+                        </span>
+                      )}
                       <StatusBadge status={o.status} />
                       {o.is_overdue && (
                         <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider font-bold bg-rose-50 text-rose-700 border border-rose-200 px-1.5 py-0.5 rounded-sm"

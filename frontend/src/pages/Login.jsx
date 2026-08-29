@@ -31,6 +31,16 @@ export default function Login() {
   const [challengeId, setChallengeId] = useState(null);
   const [sentTo, setSentTo] = useState(null);
   const [otpCode, setOtpCode] = useState("");
+  // Cooldown (seconds) before "Resend code" is available again.
+  const [resendIn, setResendIn] = useState(0);
+  const [resending, setResending] = useState(false);
+
+  // Tick the resend cooldown down to zero.
+  React.useEffect(() => {
+    if (resendIn <= 0) return;
+    const id = setInterval(() => setResendIn((s) => (s > 0 ? s - 1 : 0)), 1000);
+    return () => clearInterval(id);
+  }, [resendIn]);
 
   React.useEffect(() => {
     let alive = true;
@@ -72,6 +82,7 @@ export default function Login() {
         setSentTo(res.sentTo);
         setOtpStep(true);
         setOtpCode("");
+        setResendIn(30);
         toast.success(
           res.emailSent && res.sentTo
             ? `A login code was sent to ${res.sentTo}`
@@ -84,6 +95,34 @@ export default function Login() {
       toast.error(err?.response?.data?.detail || t("login.loginFailed"));
     } finally {
       setBusy(false);
+    }
+  };
+
+  // Resend the OTP by re-issuing the login challenge (server generates a
+  // fresh code + challenge). Guarded by the cooldown timer.
+  const resendOtp = async () => {
+    if (resendIn > 0 || resending) return;
+    setResending(true);
+    try {
+      const res = await login(email, password);
+      if (res?.otpRequired) {
+        setChallengeId(res.challengeId);
+        setSentTo(res.sentTo);
+        setOtpCode("");
+        setResendIn(30);
+        toast.success(
+          res.emailSent && res.sentTo
+            ? `A new code was sent to ${res.sentTo}`
+            : "A new login code was generated. Check your email."
+        );
+      } else {
+        // OTP no longer required (admin turned it off) — just finish.
+        await finishLogin();
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Could not resend code");
+    } finally {
+      setResending(false);
     }
   };
 
@@ -280,6 +319,20 @@ export default function Login() {
                   onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = BLUE)}
                 >
                   {busy ? "Verifying…" : "Verify & log in"}
+                </button>
+                <button
+                  type="button"
+                  onClick={resendOtp}
+                  disabled={busy || resending || resendIn > 0}
+                  data-testid="login-otp-resend"
+                  className="w-full h-11 rounded-full border-2 font-bold text-sm transition-colors disabled:opacity-60"
+                  style={{ borderColor: BLUE, color: BLUE }}
+                >
+                  {resending
+                    ? "Sending…"
+                    : resendIn > 0
+                    ? `Resend code in ${resendIn}s`
+                    : "Resend code"}
                 </button>
                 <button
                   type="button"

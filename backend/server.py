@@ -1789,11 +1789,12 @@ async def list_orders(status_filter: Optional[str] = None, user=Depends(get_curr
     if cust_ids:
         async for c in db.customers.find(
             {"id": {"$in": cust_ids}},
-            {"_id": 0, "id": 1, "city": 1, "location": 1},
+            {"_id": 0, "id": 1, "city": 1, "location": 1, "address": 1},
         ):
             cust_loc[c["id"]] = {
                 "city": c.get("city") or "",
                 "location": c.get("location") or "",
+                "address": c.get("address") or "",
             }
 
     # Dispatched-items summary — a fully dispatched order's `items` list is
@@ -1892,6 +1893,7 @@ async def list_orders(status_filter: Optional[str] = None, user=Depends(get_curr
         loc = cust_loc.get(o.get("customer_id") or "", {})
         o["customer_city"] = loc.get("city", "")
         o["customer_location"] = loc.get("location", "")
+        o["customer_address"] = loc.get("address", "")
         o["dispatched_items"] = list(disp_map.get(o["id"], {}).values())
         # Date-grouped brief: [{date, items:[...]}, ...] sorted oldest→newest.
         day_map = disp_dates.get(o["id"], {})
