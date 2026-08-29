@@ -26,12 +26,12 @@ function StatusBadge({ status }) {
 }
 
 // A compact chip for a single order line. `tone` switches the palette so the
-// same component renders both pending (slate) and dispatched (indigo) items.
+// same component renders both pending (red) and dispatched (indigo) items.
 function ItemChip({ it, tone = "pending", testid }) {
   const cls = tone === "dispatched"
     ? "bg-indigo-50 text-indigo-900 border-indigo-200"
-    : "bg-slate-100 text-slate-800 border-slate-200";
-  const subCls = tone === "dispatched" ? "text-indigo-400" : "text-slate-400";
+    : "bg-red-50 text-red-800 border-red-200";
+  const subCls = tone === "dispatched" ? "text-indigo-400" : "text-red-400";
   return (
     <span title={it.product_name || ""} data-testid={testid}
           className={`text-xs px-2 py-1 rounded-sm border ${cls}`}>
