@@ -25,6 +25,7 @@ import VendorPriceLists from "@/pages/VendorPriceLists";
 import VendorLedger from "@/pages/VendorLedger";
 import InstallPrompt from "@/components/InstallPrompt";
 import AIChatbot from "@/components/AIChatbot";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import "@/App.css";
 
 function Protected({ children, adminOnly = false, permKey = null, permKeys = null }) {
@@ -59,6 +60,13 @@ function Landing() {
   return <Dashboard />;
 }
 
+// Reads the current location so the ErrorBoundary can reset itself whenever
+// the route changes (navigating away from a broken page recovers the UI).
+function RoutedBoundary({ children }) {
+  const location = useLocation();
+  return <ErrorBoundary resetKey={location.pathname}>{children}</ErrorBoundary>;
+}
+
 export default function App() {
   React.useEffect(() => {
     // Global guard: stop the mouse wheel from changing the value of any
@@ -84,39 +92,41 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route
-            path="/"
-            element={
-              <Protected>
-                <Layout />
-              </Protected>
-            }
-          >
-            <Route index element={<Landing />} />
-            <Route path="orders" element={<Protected permKey="orders"><Orders /></Protected>} />
-            <Route path="orders/new" element={<Protected permKeys={["orders", "newOrder"]}><NewOrder /></Protected>} />
-            <Route path="customers" element={<Protected permKey="customers"><Customers /></Protected>} />
-            <Route path="dispatch" element={<Protected permKey="dispatch"><Dispatch /></Protected>} />
-            <Route path="purchase-center" element={<Protected adminOnly permKey="purchaseCenter"><PurchaseCenter /></Protected>} />
-            <Route path="dispatch-ledger" element={<Protected permKey="dispatchLedger"><DispatchLedger /></Protected>} />
-            <Route path="products" element={<Protected permKey="products"><Products /></Protected>} />
-            <Route path="admin/raw-materials" element={<Protected adminOnly permKey="rawMaterials"><RawMaterials /></Protected>} />
-            <Route path="reports/daily" element={<Protected permKey="dailyReport"><DailyReport /></Protected>} />
-            <Route path="estimates" element={<Protected permKey="estimates"><Estimates /></Protected>} />
-            <Route path="admin/users" element={<Protected adminOnly permKey="adminUsers"><AdminUsers /></Protected>} />
-            <Route path="admin/price-lists" element={<Protected adminOnly permKey="priceLists"><PriceLists /></Protected>} />
-            <Route path="admin/vendor-price-lists" element={<Protected adminOnly permKey="vendorPriceLists"><VendorPriceLists /></Protected>} />
-            <Route path="admin/settings" element={<Protected adminOnly permKey="adminSettings"><AdminSettings /></Protected>} />
-            <Route path="admin/login-attestations" element={<Protected adminOnly permKey="loginAudit"><LoginAttestations /></Protected>} />
-            <Route path="admin/suppliers" element={<Protected adminOnly permKey="vendorLedger"><VendorLedger /></Protected>} />
-            <Route path="admin/vendors" element={<Protected adminOnly permKey="suppliers"><Suppliers /></Protected>} />
-            <Route path="admin/suppliers/:id" element={<Protected adminOnly permKey="vendorLedger"><SupplierLedger /></Protected>} />
-            <Route path="admin/dispatch-ledger" element={<Navigate to="/dispatch-ledger" replace />} />
-          </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <RoutedBoundary>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route
+              path="/"
+              element={
+                <Protected>
+                  <Layout />
+                </Protected>
+              }
+            >
+              <Route index element={<Landing />} />
+              <Route path="orders" element={<Protected permKey="orders"><Orders /></Protected>} />
+              <Route path="orders/new" element={<Protected permKeys={["orders", "newOrder"]}><NewOrder /></Protected>} />
+              <Route path="customers" element={<Protected permKey="customers"><Customers /></Protected>} />
+              <Route path="dispatch" element={<Protected permKey="dispatch"><Dispatch /></Protected>} />
+              <Route path="purchase-center" element={<Protected adminOnly permKey="purchaseCenter"><PurchaseCenter /></Protected>} />
+              <Route path="dispatch-ledger" element={<Protected permKey="dispatchLedger"><DispatchLedger /></Protected>} />
+              <Route path="products" element={<Protected permKey="products"><Products /></Protected>} />
+              <Route path="admin/raw-materials" element={<Protected adminOnly permKey="rawMaterials"><RawMaterials /></Protected>} />
+              <Route path="reports/daily" element={<Protected permKey="dailyReport"><DailyReport /></Protected>} />
+              <Route path="estimates" element={<Protected permKey="estimates"><Estimates /></Protected>} />
+              <Route path="admin/users" element={<Protected adminOnly permKey="adminUsers"><AdminUsers /></Protected>} />
+              <Route path="admin/price-lists" element={<Protected adminOnly permKey="priceLists"><PriceLists /></Protected>} />
+              <Route path="admin/vendor-price-lists" element={<Protected adminOnly permKey="vendorPriceLists"><VendorPriceLists /></Protected>} />
+              <Route path="admin/settings" element={<Protected adminOnly permKey="adminSettings"><AdminSettings /></Protected>} />
+              <Route path="admin/login-attestations" element={<Protected adminOnly permKey="loginAudit"><LoginAttestations /></Protected>} />
+              <Route path="admin/suppliers" element={<Protected adminOnly permKey="vendorLedger"><VendorLedger /></Protected>} />
+              <Route path="admin/vendors" element={<Protected adminOnly permKey="suppliers"><Suppliers /></Protected>} />
+              <Route path="admin/suppliers/:id" element={<Protected adminOnly permKey="vendorLedger"><SupplierLedger /></Protected>} />
+              <Route path="admin/dispatch-ledger" element={<Navigate to="/dispatch-ledger" replace />} />
+            </Route>
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </RoutedBoundary>
       </BrowserRouter>
       <Toaster position="top-right" richColors />
       <InstallPrompt />

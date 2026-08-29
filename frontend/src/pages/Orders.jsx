@@ -120,7 +120,8 @@ export default function Orders() {
     if (filter === "discrepancy" && !o.discrepancy) return false;
     if (!q) return true;
     const s = q.toLowerCase();
-    return o.customer_name.toLowerCase().includes(s) ||
+    return (o.customer_name || "").toLowerCase().includes(s) ||
+           (o.customer_address || "").toLowerCase().includes(s) ||
            o.items?.some((it) =>
              (it.item_name || "").toLowerCase().includes(s) ||
              (it.product_name || "").toLowerCase().includes(s)

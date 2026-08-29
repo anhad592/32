@@ -225,8 +225,17 @@ backend:
         agent: "testing"
         comment: "GET /users with admin token successfully returns list of all users (excluding password field). Used in Test 5 to find user operator ID."
 
-frontend:
-  # No frontend testing performed as per system prompt instructions
+  - task: "Global ErrorBoundary prevents blank white screen crashes"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/components/ErrorBoundary.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "User reported the app sometimes suddenly goes to a BLANK WHITE SCREEN. Root cause: no React error boundary, so any render-time error unmounted the whole tree. Added ErrorBoundary (class component) wrapping all routes in App.js via RoutedBoundary (resets on route change using location.pathname as resetKey). On error it shows a recovery card with 'Try again' (data-testid=error-boundary-reload) and 'Go to Dashboard' (data-testid=error-boundary-home) instead of a blank screen. Also hardened Orders.jsx filtered() against undefined customer_name. Please verify via automated frontend testing: (1) Normal login + navigation across pages (Dashboard, Orders with all 5 filter options incl. Discrepancy, Customers, Dispatch, Products) shows NO blank white screens and each page renders content. (2) The Orders page loads and switching the filter dropdown between All Status/Pending/Dispatched/Cleared/Discrepancy never produces a blank screen. Credentials admin@factory.com/admin123."
 
   - task: "Orders list — Pending / Dispatched / All Status views"
     implemented: true
