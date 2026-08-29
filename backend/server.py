@@ -631,9 +631,9 @@ async def seed_db():
         await db.users.insert_many([admin, user])
         logger.info("Seeded default users")
     else:
-        # OTP login is disabled globally — force it OFF for every user so no
-        # one is ever prompted for a second-step email code.
-        await db.users.update_many({}, {"$set": {"otp_login": False}})
+        # Backfill otp_login only where the field is missing (preserve any
+        # admin-chosen ON/OFF value). Default OFF — the feature is optional.
+        await db.users.update_many({"otp_login": {"$exists": False}}, {"$set": {"otp_login": False}})
         # Backfill username for any pre-existing user (local-part of email, deduped)
         seen = set(u.get("username") for u in await db.users.find({"username": {"$exists": True}}, {"_id": 0, "username": 1}).to_list(1000) if u.get("username"))
         async for u in db.users.find({"username": {"$exists": False}}, {"_id": 0}):
@@ -772,11 +772,11 @@ async def login(body: UserIn):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     # ── Two-step verification (email OTP) — DISABLED ─────────────────────
-    # OTP login has been turned off for all users. Everyone now logs in
-    # directly with their password (single step). The block below is kept
-    # for reference but never runs because the guard is forced off.
-    OTP_LOGIN_ENABLED = False
-    if OTP_LOGIN_ENABLED and user.get("otp_login"):
+    # Optional email-OTP second step. Admin can turn this ON/OFF per user
+    # from Admin → Users. When ON, the user must complete an email OTP as a
+    # second step. The code is emailed to the same address configured for the
+    # daily database backup, reusing those Gmail credentials.
+    if user.get("otp_login"):
         import random
         code = f"{random.randint(0, 999999):06d}"
         challenge_id = str(uuid.uuid4())

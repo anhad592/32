@@ -258,12 +258,27 @@ frontend:
         agent: "testing"
         comment: "✅ ALL TESTS PASSED (9/9). Comprehensive regression testing completed: (1) Discrepancy Detection: GET /orders correctly attaches discrepancy object to Pending orders when unlinked dispatch exists for same customer with shared SKU and dispatched_at < created_at. Verified all required fields (dispatch_id, slip_no, dispatched_at, order_date, entered_at, items[]) with correct values. (2) Resolve Actions: update_date correctly updates order_date to dispatch date, keeps status=Pending, dismisses discrepancy; clear correctly marks order status=Dispatched, empties items[], links dispatch (adds order_id to dispatch.order_ids), dismisses discrepancy; keep correctly keeps status=Pending and dismisses discrepancy; delete correctly removes order from database. (3) Error Handling: invalid action returns 400, unknown order_id returns 404, unknown dispatch_id returns 404, missing dispatch_id for update_date/clear returns 404. All discrepancies correctly disappear from subsequent GET /orders after dismissal. Test fixtures created in MongoDB (6 order+dispatch pairs with dispatched_at 4 days ago, created_at now) and cleaned up successfully. Test script: /app/test_discrepancy.py"
 
+  - task: "OTP login feature restored (optional, admin-togg" 
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "RE-ENABLED the optional email-OTP login that was previously disabled. Changes: (1) /auth/login again honors user.otp_login — when true it creates an admin_otp_challenges record, emails the 6-digit code to the backup email (backup_mod.send_otp_email) and ALSO logs it server-side ('Admin OTP for <email> (challenge <cid>): <code>'), and returns {otp_required:true, challenge_id, sent_to(masked), email_sent}. (2) startup seed no longer force-disables otp_login for everyone (only backfills missing field to false). (3) PATCH /users/{uid}/otp still toggles per user. (4) POST /auth/verify-otp verifies the code and returns token+user. Please regression-test the full flow using admin token (admin@factory.com/admin123, currently otp_login=false → direct login): (a) find the seeded user user@factory.com, PATCH /users/{uid}/otp {otp_login:true}; (b) POST /auth/login for that user → expect otp_required:true + challenge_id, NO token; (c) read the OTP code from /var/log/supervisor/backend.out.log or backend.err.log matching 'Admin OTP for user@factory.com (challenge <cid>): <code>'; (d) POST /auth/verify-otp {challenge_id, code} → expect token+user; (e) wrong code → 401; (f) PATCH otp back to false → login returns token directly again. Report pass/fail per step."
+      - working: true
+        agent: "testing"
+        comment: "✅ ALL 9 TESTS PASSED. Comprehensive OTP login feature testing completed successfully: (0) Admin login with otp_login=false correctly returns direct token. (1) GET /users successfully retrieves user list and found user@factory.com with id=be0c3c5f-d273-43d2-9355-6bbdcc94db86. (2) PATCH /users/{id}/otp with otp_login=true successfully enabled OTP for user@factory.com. (3) POST /auth/login for user@factory.com correctly returns otp_required=true, challenge_id, sent_to (null), email_sent (false), and NO token field. (4) OTP code successfully read from backend logs (/var/log/supervisor/backend.err.log) using pattern 'Admin OTP for user@factory.com (challenge <cid>): <6-digit-code>'. (5) POST /auth/verify-otp with correct code successfully returns token and user object with role='user'. (6) Negative test: POST /auth/verify-otp with wrong code '000000' correctly returns 401 status with no token. (7) PATCH /users/{id}/otp with otp_login=false successfully disabled OTP. (7b) POST /auth/login for user@factory.com after OTP disable correctly returns direct token with no otp_required field. The optional, admin-toggleable email-OTP login feature is fully functional. Test script: /app/test_otp_login.py"
+
 metadata:
   created_by: "testing_agent"
   version: "1.0"
-  test_sequence: 3
+  test_sequence: 4
   run_ui: false
-  last_tested: "2026-08-28T15:35:00Z"
+  last_tested: "2026-08-29T18:50:10Z"
 
 test_plan:
   current_focus: []
@@ -280,3 +295,5 @@ agent_communication:
     message: "✅ Orders endpoint testing complete. All three views working correctly: (1) Pending view returns only Pending orders with items, (2) Dispatched view includes both fully-dispatched and partially-dispatched orders with dispatched_items populated, (3) All Status view returns all orders with dispatch_summary field correctly structured and validated. The new dispatch_summary field is present on all orders, correctly groups dispatches by date (YYYY-MM-DD), and quantities match the aggregated dispatched_items. No issues found. Test script available at /app/test_orders_endpoint.py for regression testing."
   - agent: "testing"
     message: "✅ Order discrepancy feature regression testing complete. All 9 tests passed: discrepancy detection correctly identifies dispatch-before-order scenarios with all required fields; all 4 resolve actions (update_date, clear, keep, delete) work correctly with proper status changes, data updates, and discrepancy dismissal; all error cases (invalid action, unknown order, unknown dispatch) return correct HTTP status codes. Test fixtures created in MongoDB and cleaned up successfully. No issues found. Test script available at /app/test_discrepancy.py for future regression testing."
+  - agent: "testing"
+    message: "✅ OTP login feature restoration testing complete. All 9 tests passed successfully: (1) Admin login with otp_login=false returns direct token, (2) GET /users retrieves user list, (3) PATCH /users/{id}/otp enables OTP, (4) Login with OTP enabled returns otp_required=true with challenge_id and no token, (5) OTP code successfully read from backend logs, (6) OTP verification with correct code returns token and user object, (7) Wrong OTP code correctly rejected with 401, (8) PATCH /users/{id}/otp disables OTP, (9) Login after OTP disable returns direct token. The optional, admin-toggleable email-OTP login feature is fully functional. Test script: /app/test_otp_login.py"

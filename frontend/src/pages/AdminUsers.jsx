@@ -286,7 +286,7 @@ export default function AdminUsers() {
                  </div>
                </div>
                <div className="flex items-center gap-2">
-                 <div className="hidden items-center gap-2 mr-1 px-2 py-1 rounded-sm border border-slate-200 bg-slate-50"
+                 <div className="hidden sm:flex items-center gap-2 mr-1 px-2 py-1 rounded-sm border border-slate-200 bg-slate-50"
                       title="Require an email OTP as a second login step">
                    <span className="text-[10px] uppercase tracking-wider font-bold text-slate-600">OTP login</span>
                    <Switch
@@ -369,7 +369,7 @@ export default function AdminUsers() {
               </Select>
             </div>
             {/* Email OTP two-step login toggle */}
-            <label className="hidden items-center justify-between gap-3 border border-slate-200 rounded-sm px-3 py-2.5 cursor-pointer">
+            <label className="flex items-center justify-between gap-3 border border-slate-200 rounded-sm px-3 py-2.5 cursor-pointer">
               <span>
                 <span className="block text-xs font-bold uppercase text-slate-800">Require OTP on login</span>
                 <span className="block text-[11px] text-slate-500 mt-0.5">Emails a 6-digit code as a second step at sign-in.</span>
