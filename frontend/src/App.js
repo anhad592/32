@@ -24,7 +24,6 @@ import RawMaterials from "@/pages/RawMaterials";
 import VendorPriceLists from "@/pages/VendorPriceLists";
 import VendorLedger from "@/pages/VendorLedger";
 import InstallPrompt from "@/components/InstallPrompt";
-import AIChatbot from "@/components/AIChatbot";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import "@/App.css";
 
@@ -130,7 +129,6 @@ export default function App() {
       </BrowserRouter>
       <Toaster position="top-right" richColors />
       <InstallPrompt />
-      <AIChatbot />
     </AuthProvider>
   );
 }

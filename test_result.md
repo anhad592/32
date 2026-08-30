@@ -240,6 +240,18 @@ backend:
         agent: "testing"
         comment: "✅ ALL TESTS PASSED. Comprehensive testing completed: (1) Login successful with admin@factory.com/admin123 (single-step, no OTP). (2) All 5 main pages render correctly with meaningful content: Dashboard (33,842 chars), Orders (56,674 chars), Customers (70,943 chars), Dispatch (733 chars), Products (1,276 chars). NO blank white screens encountered. (3) Orders page filter dropdown tested with ALL 5 options (All Status, Pending, Dispatched, Cleared, Discrepancy) - all render correctly without blank screens or error boundaries. The ErrorBoundary implementation successfully prevents blank white screen crashes. Note: Had to fix admin user password in database (was incorrect from seed) and set otp_login=false for single-step login."
 
+  - task: "Remove AI Chatbot floating button/widget"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/App.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "User asked to remove the floating AI chatbot (orange robot button, bottom-right). Removed the <AIChatbot /> render and its import from App.js. Verify via automated frontend testing (admin@factory.com/admin123): (1) the floating robot/chatbot button is NO LONGER visible on any page (Dashboard, Orders, Customers); (2) the app still renders normally with no blank white screen and no console errors from the removal. Look for absence of the chatbot launcher (previously bottom-right circular orange button)."
+
   - task: "Orphan dispatched orders — infer/link correct dispatch slip in GET /orders"
     implemented: true
     working: "NA"
