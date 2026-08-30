@@ -345,6 +345,7 @@ export default function Orders() {
                           <div key={`g-${gi}`} className="flex flex-wrap items-center gap-1.5">
                             <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded-sm">
                               <Truck className="w-3 h-3" /> {t("orders.briefDispatchedOn", { date: fmtDate(grp.date) })}
+                              {grp.slip_no ? ` · ${t("orders.slip", "Slip")} #${grp.slip_no}` : ""}
                             </span>
                             {grp.items.map((it, i) => (
                               <ItemChip key={`gi-${i}`} it={it} tone="dispatched"
@@ -352,6 +353,9 @@ export default function Orders() {
                             ))}
                           </div>
                         ))}
+                        {o.dispatch_inferred && o.dispatch_summary?.length > 0 && (
+                          <div className="text-[10px] text-slate-400 italic">{t("orders.slipInferred")}</div>
+                        )}
                         {o.items?.length > 0 && (
                           <div className="flex flex-wrap items-center gap-1.5">
                             <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider font-bold text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-sm">
@@ -363,13 +367,38 @@ export default function Orders() {
                             ))}
                           </div>
                         )}
-                        {(!o.items || o.items.length === 0) && o.dispatch_summary?.length > 0 && (
-                          <div className="text-[11px] font-semibold text-emerald-700 inline-flex items-center gap-1">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> {t("orders.briefFullyDispatched")}
+                        {/* Dispatched order with NO dispatch records on file
+                            (e.g. marked Dispatched manually). Fall back to the
+                            original item snapshot so details still show. */}
+                        {(!o.items || o.items.length === 0) &&
+                          (!o.dispatch_summary || o.dispatch_summary.length === 0) &&
+                          o.status === "Dispatched" && o.original_items?.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded-sm">
+                              <Truck className="w-3 h-3" /> {t("orders.status.Dispatched", "Dispatched")}
+                            </span>
+                            {o.original_items.map((it, i) => (
+                              <ItemChip key={`oi-${i}`} it={it} tone="dispatched" />
+                            ))}
                           </div>
                         )}
-                        {(!o.items || o.items.length === 0) && (!o.dispatch_summary || o.dispatch_summary.length === 0) && (
-                          <span className="text-xs text-slate-400">{t("orders.briefNoDispatch")}</span>
+                        {/* Status-aware closing note — never contradict the
+                            status badge (fixes "Dispatched" + "Not dispatched yet"). */}
+                        {(!o.items || o.items.length === 0) && (
+                          (o.dispatch_summary?.length > 0 || o.status === "Dispatched") ? (
+                            <div className="text-[11px] font-semibold text-emerald-700 inline-flex items-center gap-1">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              {o.dispatch_summary?.length > 0
+                                ? t("orders.briefFullyDispatched")
+                                : t("orders.briefDispatchedNoSlip")}
+                            </div>
+                          ) : o.status === "Cleared" ? (
+                            <div className="text-[11px] font-semibold text-slate-500 inline-flex items-center gap-1">
+                              <CheckCircle2 className="w-3.5 h-3.5" /> {t("orders.briefCleared")}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-slate-400">{t("orders.briefNoDispatch")}</span>
+                          )
                         )}
                       </div>
                     )}

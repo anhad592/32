@@ -1803,14 +1803,17 @@ async def list_orders(status_filter: Optional[str] = None, user=Depends(get_curr
     # dispatches collection so the UI can show "what was dispatched".
     order_ids = [o["id"] for o in items]
     disp_map: Dict[str, Dict[str, Dict[str, Any]]] = {}
-    # Date-grouped dispatch history per order → powers the "All Status" brief
-    # (what was shipped, and on which day). oid → dayISO → item_key → row
-    disp_dates: Dict[str, Dict[str, Dict[str, Dict[str, Any]]]] = {}
+    # Per-slip dispatch history per order → powers the "All Status" brief
+    # (each shipment shows its date AND slip number). oid → list[{date, slip_no, items}]
+    disp_slips: Dict[str, List[Dict[str, Any]]] = {}
+    # Track which dispatch ids are already linked to each order so the
+    # inference step below doesn't attach a slip that's already shown.
+    linked_disp_ids: Dict[str, set] = {}
     if order_ids:
         oid_set = set(order_ids)
         async for d in db.dispatches.find(
             {"$or": [{"order_id": {"$in": order_ids}}, {"order_ids": {"$in": order_ids}}]},
-            {"_id": 0, "order_id": 1, "order_ids": 1, "items": 1,
+            {"_id": 0, "id": 1, "order_id": 1, "order_ids": 1, "items": 1,
              "dispatched_at": 1, "last_dispatched_at": 1, "slip_no": 1},
         ):
             targets = []
@@ -1818,7 +1821,7 @@ async def list_orders(status_filter: Optional[str] = None, user=Depends(get_curr
                 targets = [d["order_id"]]
             else:
                 targets = [oid for oid in (d.get("order_ids") or []) if oid in oid_set]
-            # Resolve the dispatch day (YYYY-MM-DD) for grouping the brief.
+            # Resolve the dispatch day (YYYY-MM-DD) for the brief.
             dts = d.get("dispatched_at") or d.get("last_dispatched_at")
             day = ""
             if dts:
@@ -1827,12 +1830,17 @@ async def list_orders(status_filter: Optional[str] = None, user=Depends(get_curr
                     day = dd.date().isoformat()
                 except Exception:
                     day = str(dts)[:10]
+            slip_items = [{
+                "item_id": it.get("item_id"),
+                "item_name": it.get("item_name"),
+                "product_name": it.get("product_name"),
+                "variant": it.get("variant"),
+                "quantity": int(it.get("quantity") or 0),
+            } for it in (d.get("items") or [])]
             for oid in targets:
                 bucket = disp_map.setdefault(oid, {})
-                day_bucket = disp_dates.setdefault(oid, {}).setdefault(day, {})
-                for it in (d.get("items") or []):
+                for it in slip_items:
                     key = it.get("item_id") or it.get("item_name") or ""
-                    qty = int(it.get("quantity") or 0)
                     row = bucket.setdefault(key, {
                         "item_id": it.get("item_id"),
                         "item_name": it.get("item_name"),
@@ -1840,15 +1848,11 @@ async def list_orders(status_filter: Optional[str] = None, user=Depends(get_curr
                         "variant": it.get("variant"),
                         "quantity": 0,
                     })
-                    row["quantity"] += qty
-                    drow = day_bucket.setdefault(key, {
-                        "item_id": it.get("item_id"),
-                        "item_name": it.get("item_name"),
-                        "product_name": it.get("product_name"),
-                        "variant": it.get("variant"),
-                        "quantity": 0,
-                    })
-                    drow["quantity"] += qty
+                    row["quantity"] += it["quantity"]
+                disp_slips.setdefault(oid, []).append({
+                    "date": day, "slip_no": d.get("slip_no"), "items": slip_items,
+                })
+                linked_disp_ids.setdefault(oid, set()).add(d.get("id"))
 
     # ── Discrepancy detection ────────────────────────────────────────────
     # Catch the case where goods were DISPATCHED before the matching order
@@ -1895,12 +1899,54 @@ async def list_orders(status_filter: Optional[str] = None, user=Depends(get_curr
         o["customer_location"] = loc.get("location", "")
         o["customer_address"] = loc.get("address", "")
         o["dispatched_items"] = list(disp_map.get(o["id"], {}).values())
-        # Date-grouped brief: [{date, items:[...]}, ...] sorted oldest→newest.
-        day_map = disp_dates.get(o["id"], {})
-        o["dispatch_summary"] = [
-            {"date": day, "items": list(rows.values())}
-            for day, rows in sorted(day_map.items(), key=lambda kv: kv[0])
-        ]
+        # Per-slip brief: [{date, slip_no, items:[...]}, ...] sorted oldest→newest.
+        slips = sorted(disp_slips.get(o["id"], []), key=lambda s: (s.get("date") or ""))
+        o["dispatch_summary"] = slips
+        o["dispatch_inferred"] = False
+
+        # ── Repair display for "orphan" dispatched orders ─────────────────
+        # Some orders were marked Dispatched but their slip isn't linked via
+        # order_id/order_ids (e.g. dispatched off-order or on a merged slip),
+        # so the brief was empty → "no slip on record". Infer the correct
+        # slip(s) from this customer's dispatches by matching the order's SKUs
+        # (uses original_items when items were emptied on dispatch).
+        if not slips and o.get("status") in ("Dispatched", "Cleared"):
+            match_items = o.get("items") or o.get("original_items") or []
+            want_ids = {it.get("item_id") for it in match_items if it.get("item_id")}
+            want_names = {(it.get("item_name") or "").strip().lower()
+                          for it in match_items if it.get("item_name")}
+            already = linked_disp_ids.get(o["id"], set())
+            inferred = []
+            for d in cust_disp.get(o.get("customer_id") or "", []):
+                if d.get("id") in already:
+                    continue
+                d_items = [it for it in (d.get("items") or [])
+                           if (it.get("item_id") and it.get("item_id") in want_ids)
+                           or ((it.get("item_name") or "").strip().lower() in want_names)]
+                if not d_items:
+                    continue
+                dts = d.get("dispatched_at") or d.get("last_dispatched_at")
+                day = ""
+                if dts:
+                    try:
+                        day = datetime.fromisoformat(str(dts).replace("Z", "+00:00")).date().isoformat()
+                    except Exception:
+                        day = str(dts)[:10]
+                inferred.append({
+                    "date": day,
+                    "slip_no": d.get("slip_no"),
+                    "items": [{
+                        "item_id": it.get("item_id"),
+                        "item_name": it.get("item_name"),
+                        "product_name": it.get("product_name"),
+                        "variant": it.get("variant"),
+                        "quantity": int(it.get("quantity") or 0),
+                    } for it in d_items],
+                })
+            if inferred:
+                inferred.sort(key=lambda s: (s.get("date") or ""))
+                o["dispatch_summary"] = inferred
+                o["dispatch_inferred"] = True
 
         # Attach a discrepancy suggestion if one is found (and not dismissed).
         o["discrepancy"] = None
