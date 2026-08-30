@@ -240,6 +240,18 @@ backend:
         agent: "testing"
         comment: "✅ ALL TESTS PASSED. Comprehensive testing completed: (1) Login successful with admin@factory.com/admin123 (single-step, no OTP). (2) All 5 main pages render correctly with meaningful content: Dashboard (33,842 chars), Orders (56,674 chars), Customers (70,943 chars), Dispatch (733 chars), Products (1,276 chars). NO blank white screens encountered. (3) Orders page filter dropdown tested with ALL 5 options (All Status, Pending, Dispatched, Cleared, Discrepancy) - all render correctly without blank screens or error boundaries. The ErrorBoundary implementation successfully prevents blank white screen crashes. Note: Had to fix admin user password in database (was incorrect from seed) and set otp_login=false for single-step login."
 
+  - task: "AI Voice assistant button visible & recognizable (Claude-powered)"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/components/VoiceAgent.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "User could not see/recognize the AI voice command icon (it was a plain orange robot identical to the removed chatbot). Redesigned the VoiceAgent floating button into a clearly-labelled pill: Mic icon + 'AI Voice' + 'EN · हिं', bottom-right, data-testid='voice-agent-fab'. Backend voice classifier switched to Claude (claude-sonnet-4-6). Please verify via automated frontend testing (admin@factory.com/admin123): (1) after login, the 'AI Voice' floating button (data-testid='voice-agent-fab') is VISIBLE at bottom-right on the Dashboard/Orders pages; (2) clicking it opens the voice assistant dialog (shows a mic control and a text command input). NOTE: the shared Emergent LLM key budget may be exhausted, so actually SENDING a command may return an LLM budget error — that is expected and NOT a UI failure; only verify the button is visible and the dialog opens."
+
   - task: "Remove AI Chatbot floating button/widget"
     implemented: true
     working: "NA"

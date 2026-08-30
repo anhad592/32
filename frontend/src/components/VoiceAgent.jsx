@@ -389,17 +389,21 @@ export default function VoiceAgent() {
 
   return (
     <>
-      {/* Floating action button */}
+      {/* Floating action button — clearly labelled AI voice command */}
       <button
         type="button"
         onClick={() => setOpen(true)}
         data-testid="voice-agent-fab"
-        aria-label="Open voice assistant"
-        className="fixed z-[60] bottom-[calc(6rem+env(safe-area-inset-bottom))] right-[calc(1.25rem+env(safe-area-inset-right))] sm:bottom-[calc(1.5rem+env(safe-area-inset-bottom))] sm:right-[calc(1.5rem+env(safe-area-inset-right))] w-14 h-14 rounded-full bg-[#E65100] hover:bg-[#CC4800] text-white shadow-lg flex items-center justify-center transition-transform active:scale-95 group"
+        aria-label="Open AI voice assistant"
+        title="AI Voice Assistant — bolkar command dein (English / हिंदी)"
+        className="fixed z-[60] bottom-[calc(6rem+env(safe-area-inset-bottom))] right-[calc(1.25rem+env(safe-area-inset-right))] sm:bottom-[calc(1.5rem+env(safe-area-inset-bottom))] sm:right-[calc(1.5rem+env(safe-area-inset-right))] h-14 pl-4 pr-5 rounded-full bg-[#E65100] hover:bg-[#CC4800] text-white shadow-lg flex items-center gap-2 transition-transform active:scale-95 group"
       >
-        <Bot className="w-6 h-6" />
+        <Mic className="w-6 h-6" />
+        <span className="flex flex-col items-start leading-none">
+          <span className="text-sm font-bold">AI Voice</span>
+          <span className="text-[10px] font-semibold opacity-90">EN · हिं</span>
+        </span>
         <span className="absolute -top-1 -right-1 bg-emerald-500 w-3 h-3 rounded-full border-2 border-white"></span>
-        <span className="sr-only">Voice assistant</span>
       </button>
 
       <Dialog open={open} onOpenChange={(o) => { if (!o) closeAll(); else setOpen(true); }}>
