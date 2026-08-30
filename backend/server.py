@@ -4293,7 +4293,9 @@ async def _classify_voice_command(transcript: str) -> Dict[str, Any]:
             session_id=f"voice-agent-{uuid.uuid4()}",
             system_message=VOICE_AGENT_INTENT_SCHEMA,
         )
-        .with_model("openai", "gpt-4o-mini")
+        # Claude understands Hindi / English / Hinglish far better than the
+        # previous model, which is critical for accurate voice-command intent.
+        .with_model("anthropic", "claude-sonnet-4-6")
     )
 
     try:
